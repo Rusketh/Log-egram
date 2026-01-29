@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "node-telegram-bot-api": "^0.67.0",
+    "telegram": "^2.26.22"
+  }
+}
