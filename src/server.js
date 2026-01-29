@@ -155,6 +155,8 @@ const clear_token = Database.prepare(`DELETE FROM Tokens WHERE created_at < date
 
 const update_token_message = Database.prepare(`UPDATE Tokens SET group_id = ?, message_id = ? WHERE token = ?`);
 
+const expired_tokens = Database.prepare(`SELECT * FROM Tokens WHERE created_at < datetime('now', '-1 hour')`);
+
 const generateAccessLink = (msg) => {
     if (msg.chat.type !== 'private')
     {
@@ -249,7 +251,20 @@ WebApp.get('/api/auth/token', async (req, res) => {
     res.redirect('/');
 });
 
-setInterval(() => clear_token.run(), 30 * 60 * 1000);
+setInterval(() => {
+
+    const expired = expired_tokens.all();
+
+    if (!expired || expired.length == 0)
+        return;
+
+    for (let row of expired) {
+        if (row.group_id && row.message_id)
+            Telegram.bot.deleteMessage(row.group_id, row.message_id).catch(() => { });
+    }
+
+    clear_token.run();
+}, 30 * 60 * 1000);
 
 /******************************************************************************************
  * Web Pages
