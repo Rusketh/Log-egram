@@ -36,14 +36,22 @@ Database.exec(`
  */
 
 const shouldLog = (message) => {
-    if (!message) return false;
+    if (!message || !message.chat || message.chat.type == "private") return false;
+
     if (message.text) return true;
+
     if (message.sticker) return true;
+
     if (message.photo) return true;
+
     if (message.voice) return true;
+
     if (message.video) return true;
+
     if (message.audio) return true;
+
     if (message.document) return true;
+
     return false;
 };
 
@@ -120,7 +128,7 @@ const addMessage = async (message, activity, version) => {
         
         const photo = message.photo[message.photo.length - 1];
 
-        if (!photo.thumb) photo.thumb = message.photo[0].file_id;
+        if (!photo.thumb) photo.thumb = message.photo[1] || message.photo[0];
 
         Attachments.insert(uuid, photo);
     }
@@ -240,9 +248,7 @@ const query = async ({from, to, group_id, user_id, message_id, activity, include
     }
 
     if (include_attachments)
-        await Promise.all(rows.map(async (row) => row.attachments = await Attachments.all(row.uuid)));
-
-    rows.map(row => row.file_count = row.attachments?.length || countFiles.get(row.uuid)?.count || 0);
+        await Promise.all(rows.map(async (row) => row.attachment = await Attachments.fetch(row.uuid)));
 
     return [rows, total];
 };

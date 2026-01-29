@@ -62,7 +62,7 @@ async function ShowGroups(filter)
 
 groupInput.addEventListener('focus', async() => {
     groupOptions.style.display = 'block';
-    const query = groupInput.value.toLowerCase();
+    const query = null; //groupInput.value.toLowerCase();
     await UpdateGroups()
     await ShowGroups(query);
 });
@@ -148,7 +148,7 @@ async function ShowUsers(filter)
 
 userInput.addEventListener('focus', async() => {
     userOptions.style.display = 'block';
-    const query = userInput.value.toLowerCase();
+    const query = null; //userInput.value.toLowerCase();
     await UpdateUsers()
     await ShowUsers(query);
 });
@@ -166,76 +166,136 @@ document.addEventListener('click', (e) => {
 });
 
 /******************************************************************************************
- * Embed Sticker
+ * Show Attachments
+ */
+
+const attachmentWindow = document.getElementById('attachment-container');
+const attachmentContent = document.getElementById('attachment-content');
+const closeAttachmentButton = document.getElementById('close-attachment-btn');
+
+async function ShowAttachment(url)
+{
+    setTimeout(() => {
+        attachmentWindow.style.display = 'block';
+        attachmentContent.innerHTML = EmbedFile({ file_url: url }, true);
+    }, 100);
+}
+
+closeAttachmentButton.onclick = function()
+{
+    attachmentWindow.style.display = 'none';
+    attachmentContent.innerHTML = '';
+}
+
+document.addEventListener('click', (e) => {
+    if (!attachmentWindow.contains(e.target)) {
+        attachmentWindow.style.display = 'none';
+        attachmentContent.innerHTML = '';
+    }
+});
+
+/******************************************************************************************
+ * RenderMessage
  */
 
 const EmbedSticker = function(path, size = 100)
 {
     if (!path) return '';
 
-    if (path.endsWith(".webp") || path.endsWith(".png") || path.endsWith(".jpg")) {
+    if (path.endsWith(".webp") || path.endsWith(".png") || path.endsWith(".jpg"))
         return `<img src="${path}" width="${size}" style="aspect-ratio: 1/1; object-fit: contain;" alt="File">`;
-    }
 
     // Videos (WebM, MP4)
-    if (path.endsWith(".webm") || path.endsWith(".mp4")) {
+    if (path.endsWith(".webm") || path.endsWith(".mp4"))
         return `<video src="${path}" width="${size}" autoplay loop muted playsinline style="aspect-ratio: 1/1; object-fit: contain;"></video>`;
-    }
 
-    /*if (path.endsWith(".tgs")) {
+    //if (path.endsWith(".tgs"))
         // TODO: This;
-    }*/
-
+    
     return `<a href=${path} style="font-size: 10px;">Unsupported Sticker</span>`;
 }
 
-/******************************************************************************************
- * Embed File
- */
-
-const EmbedFile = function(file, size = 100)
+const EmbedFile = function(file, expanded = false)
 {
     if (!file) return '';
 
-    const url = file.thumb_url || file.file_url;
+    let html = `<div>`;
 
-    if (url.endsWith(".webp") || url.endsWith(".png") || url.endsWith(".jpg"))
-        return `<a href=${file.file_url}><img src="${url}" width="${size}" style="aspect-ratio: 1/1; object-fit: contain;" alt="File"></a>`;
-
-    if (file.file_name)
-        return `<a href=${file.file_url}>${file.file_name}</a>`;
-
-    if (url.endsWith(".webm") || url.endsWith(".mp4")) 
-        return `<a href=${file.file_url}>Video File</a>`;
+    let canExpand = false;
     
-    if (url.endsWith(".mp3") || url.endsWith(".ogg") || url.endsWith(".wav"))
-        return `<a href=${file.file_url}>Audio File</a>`;
+    const cls = expanded ? `class="open-attachment"` : `class="closed-attachment"`;
 
-    /*if (path.endsWith(".tgs")) {
-        // TODO: This;
-    }*/
+    if (!expanded && file.thumb_url)
+    {
+        html += `<img ${cls} src="${file.thumb_url}" alt="${file.file_name || "File"}">`;
+        canExpand = true;
+    }
+    else if (!file.file_url)
+    {
+        html += '';
+    }
+    else if (file.file_url.endsWith(".webp") || file.file_url.endsWith(".png") || file.file_url.endsWith(".jpg"))
+    {
+        html += `<img ${cls} src="${file.file_url}" alt="${file.file_name || "File"}">`;
+        canExpand = true;
+    }
+    else if (file.file_url.endsWith(".webm") || file.file_url.endsWith(".mp4")) 
+    {
+        html += `
+            <video src="${file.file_url}" width="${size}" muted playsinline>
+                <a href=${file.file_url}>Unsupported Video Format</a>
+            </video>
+        `;
+        canExpand = true;
+    }
+    else if (file.file_url.endsWith(".mp3") || file.file_url.endsWith(".ogg") || file.file_url.endsWith(".wav"))
+    {
+        html += `
+            <audio controls ${cls}>
+                <source src="${file.file_url}">
+                <a href=${file.file_url}>Unsupported Audio Format</a>
+            </audio>
+        `;
+    }
+    else
+    {
+        html += `<i>Unknown File Type</i>`;
+    }
 
-    return `<a href=${url} style="font-size: 10px;">Unsupported format</span>`;
+
+    html += `<br>`;
+
+    if (canExpand && !expanded)
+        html += `<button class="expand-attachment-button" onclick="ShowAttachment('${file.file_url}')">&#10530; Expand</button> `;
+ 
+    html += `<button class="expand-attachment-button" onclick="window.open('${file.file_url}', '_blank')">&#11123;Download</button>`;
+
+    html += `
+        </div>
+        <br>
+    `;
+
+    return html;
 }
 
-const EmbedFiles = function(files, size = 100)
+const RenderMessage = function(message)
 {
-    return files.map(file => EmbedFile(file, size)).join(" ");
-}
+    let html = ``;
 
-async function HideAttachments(button, element, attachments)
-{
-    button.onclick = () => ShowAttachments(button, element, attachments);
-    button.innerText = "Hide Files";
-    element.style.display = 'none';
-}
+    if (message.sticker_path)
+        html += `${EmbedSticker(message.sticker_path)}<br>`;
 
-async function ShowAttachments(button, element, attachments)
-{
-    button.onclick = () => HideAttachments(button, element, attachments);
-    button.innerText = "Show Files";
-    element.style.display = 'table-row';
-    element.innerHTML = `<td colspan="6"> Attachments: ${EmbedFiles(attachments, 100)} </td>`;
+    if (message.attachment)
+        html += `${EmbedFile(message.attachment, false)}<br>`;
+
+    let text = "";
+
+    if (message.message_text)
+        text = message.message_text.replaceAll("\n","<br>");
+    else
+        text = "<i>No message text</i>";
+
+    return html + text;
 }
 
 /******************************************************************************************
@@ -261,7 +321,6 @@ async function ShowHistory(button, history, message)
     params.append('message_id', message.message_id);
     params.append('include_stickers', showStickers.checked);
     params.append('include_attachments', showAttachments.checked);
-
     params.append('activity', "EDIT");
 
     const res = await fetch(`/api/messages?${params.toString()}`);
@@ -295,7 +354,7 @@ async function ShowHistory(button, history, message)
                 <tr>
                     <th>Version</th>
                     <th>Date</th>
-                    <th>Text</th>
+                    <th>Content</th>
                     <th>Activity</th>
                 </tr>
             </thead>
@@ -303,26 +362,14 @@ async function ShowHistory(button, history, message)
     `;
 
     result.messages.forEach(message => {
-        let text = message.message_text.replaceAll("\n","<br>");
-
-        if (message.sticker_path)
-            text = `${EmbedSticker(message.sticker_path)}<br>`;
-
         html += `
             <tr>
                 <td>${message.version}</td>
                 <td>${new Date(message.timestamp).toLocaleString()}</td>
-                <td>${text}</td>
+                <td>${RenderMessage(message)}</td>
                 <td>${message.activity}</td>
             </tr>
         `;
-
-        if (message.attachments)
-            html += `
-                <tr>
-                    <td colspan="6"> Attachments: ${EmbedFiles(message.attachments, 100)} </td>
-                </tr>
-            `;
     });
 
     html += `</tbody></table>`;
@@ -418,37 +465,16 @@ async function ShowMessages()
     Messages.forEach(message => {
         const row = document.createElement('tr');
 
-        let text = message.message_text.replaceAll("\n","<br>");
-
-        if (message.sticker_path)
-            text = `${EmbedSticker(message.sticker_path)}<br>`;
-
-        row.innerHTML = `
+       row.innerHTML = `
             <td>${new Date(message.timestamp).toLocaleString()}</td>
             <td>${message.group_name || msg.group_id}</td>
             <td>${message.poster_name}</td>
-            <td>${text}</td>
+            <td>${RenderMessage(message)}</td>
             <td>${message.edit_count || 0}</td>
-            <td>${message.file_count || 0}</td>
         `;
 
         const controls = document.createElement('td');
         row.appendChild(controls);
-
-        const attachments = document.createElement('tr');
-        attachments.className = 'history-row';
-
-        if (message.attachments) {
-            console.log(message.attachments)
-            const button = document.createElement('button');
-            button.className = "expand-btn";
-            button.innerText = "Show Files";
-            button.expanded = false;
-
-            button.onclick = () => ShowAttachments(button, attachments, message.attachments);
-
-            controls.appendChild(button)
-        }
 
         const history = document.createElement('tr');
         history.className = 'history-row';
@@ -465,8 +491,6 @@ async function ShowMessages()
         }
         
         messagesTableBody.appendChild(row);
-        //messagesTableBody.appendChild(reply);
-        messagesTableBody.appendChild(attachments);
         messagesTableBody.appendChild(history);
     });
 

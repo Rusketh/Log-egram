@@ -21,8 +21,8 @@ bot.getMe().then((me) => {
  ********************************************************************/
 
 const isAdmin = async (group, user) => {
-    const admins = await bot.getChatAdministrators(group.group_id);
-    return admins.some((admin) => admin.user.id === user.user_id);
+    const admins = await bot.getChatAdministrators(group.group_id || group.id);
+    return admins.some((admin) => admin.user.id === user.user_id || user.id);
 };
 
 /********************************************************************
@@ -39,7 +39,9 @@ bot.on('message', async (message) => {
     if (!message.text || !message.text.startsWith('/'))
         return;
 
-    message.from.isAdmin = await isAdmin(message.chat, message.from);
+    if (message.chat.type !== 'private' && message.chat?.id)
+        message.from.isAdmin = await isAdmin(message.chat, message.from);
+
     const args = message.text.toLowerCase().split(" ");
     const cmd = args.shift().substring(1);
     const fn = Commands[cmd];
@@ -51,9 +53,11 @@ bot.on('message', async (message) => {
         await fn(message, ...args);
     }
     catch (e) {
-        bot.sendMessage(message.chat.id, "An error occurred while executing the command.");
         console.error(`Error executing command ${cmd}:`);
         console.error(e);
+
+        if (bot.chat?.id)
+            bot.sendMessage(message.chat.id, "An error occurred while executing the command.");
     }
 });
 
@@ -71,7 +75,9 @@ bot.on('callback_query', async (query) => {
     if (!query.data)
         return;
 
-    query.from.isAdmin = await isAdmin(query.message.chat, query.from);
+    if (query.message?.chat?.type !== 'private' && query.message?.chat?.id)
+        query.from.isAdmin = await isAdmin(query.message.chat, query.from);
+
     const data = JSON.parse(query.data);
 
     try {
@@ -79,7 +85,8 @@ bot.on('callback_query', async (query) => {
         if (fn1) return await fn1(query, data.data);
     }
     catch (e) {
-        bot.answerCallbackQuery(query.id, { text: "An error occurred while executing the callback." });
+        if (query.id)
+            bot.answerCallbackQuery(query.id, { text: "An error occurred while executing the callback." });
         console.error(`Error executing callback ${cmd}:`);
         console.error(e);
     }

@@ -37,13 +37,19 @@ Database.exec(`
     )
 `);
 
+Database.exec(`
+    CREATE TABLE IF NOT EXISTS Tokens (
+        token VARCHAR(64) PRIMARY KEY,
+        user_id DOUBLE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+
 /******************************************************************************************
  * Sessions
  */
 
-const insert = Database.prepare(`
-    INSERT INTO Sessions (session_id, user_id, auth_date) VALUES (?, ?, ?)
-`);
+const insert = Database.prepare(`INSERT INTO Sessions (session_id, user_id, auth_date) VALUES (?, ?, ?)`);
 
 const get = Database.prepare(`SELECT * FROM Sessions WHERE session_id = ?`);
 
@@ -134,6 +140,106 @@ WebApp.get('/api/auth/logout', checkAuth, forceAuth, (req, res) => {
 
     res.redirect('/');
 });
+
+/******************************************************************************************
+ * Telegram Login via Message
+ */
+
+const insertToken = Database.prepare(`INSERT INTO Tokens (token, user_id) VALUES (?, ?)`);
+
+const removeToken = Database.prepare(`DELETE FROM Tokens WHERE token = ?`);
+
+const clear_token = Database.prepare(`DELETE FROM Tokens WHERE created_at < datetime('now', '-1 hour')`);
+
+const generateAccessLink = (msg) => {
+    if (msg.chat.type !== 'private')
+    {
+        Telegram.bot.sendMessage(msg.chat.id, "Please use this command in a private chat with the bot.");
+        return [false, null];
+    }
+
+    if (!Groups.all().some(async (group) => await Telegram.isAdmin(group, msg.from)))
+    {
+        Telegram.bot.sendMessage(msg.chat.id, "You must be an admin of at least one group the bot is in to use this command.");
+        return [false, null];
+    }
+
+    console.log("Generating login token for", msg.from.username);
+
+    const token = crypto.randomBytes(32).toString('hex');
+
+    insertToken.run(token, msg.from.id);
+    
+    const url = CONFIG.server.url || `http://localhost:${CONFIG.server.port}`;
+
+    return [true, `${url}/api/auth/token?token=${token}`];
+};
+
+Telegram.registerCommand('logs', async (msg) => {
+    const url = CONFIG.server.url || `http://localhost:${CONFIG.server.port}`;
+
+    Telegram.bot.sendMessage(msg.chat.id, `LogeGram: ${url}\nUse "/login" to generate an access link.\nUse /app to open in Telegram.`, { disable_web_page_preview: true });
+});
+
+Telegram.registerCommand('login', async (msg) => {
+    
+    const [status, url] = generateAccessLink(msg);
+
+    if (!status)
+        return;
+    
+    Telegram.bot.sendMessage(msg.chat.id, `Login here: ${url} (Valid for 1 hour)`, { disable_web_page_preview: true });
+});
+
+Telegram.registerCommand('app', async (msg) => {
+    const [status, url] = generateAccessLink(msg);
+
+    if (!status)
+        return;
+
+    Telegram.bot.sendMessage(msg.chat.id, "Click the button below to open LogEgram in Telegram:", {
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    {
+                        text: "Open in App",
+                        web_app: { url }
+                    }
+                ]
+            ]
+        }
+    });
+});
+        
+
+WebApp.get('/api/auth/token', async (req, res) => {
+    const { token } = req.query;
+
+    if (!token)
+        return res.status(400).json({ status: false, error: "Token is required." });
+
+    const row = Database.prepare(`SELECT * FROM Tokens WHERE token = ?`).get(token);
+
+    if (!row)
+        return res.status(403).json({ status: false, error: "Invalid token." });
+
+    const createdAt = new Date(row.created_at);
+
+    if (Date.now() - createdAt.getTime() > 60 * 60 * 1000)
+        return res.status(403).json({ status: false, error: "Token has expired." });
+
+    removeToken.run(token);
+
+    const sessionId = crypto.randomBytes(32).toString('hex');
+
+    insert.run(sessionId, row.user_id, Date.now() / 1000);
+
+    res.cookie('session_id', sessionId, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+
+    res.redirect('/');
+});
+
+setInterval(() => clear_token.run(), 30 * 60 * 1000);
 
 /******************************************************************************************
  * Web Pages

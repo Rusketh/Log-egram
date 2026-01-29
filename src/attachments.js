@@ -74,24 +74,20 @@ const insert = Database.prepare(`
     ON CONFLICT(file_id, message_uuid) DO NOTHING
 `);
 
-const _all_ = Database.prepare(`SELECT * FROM Attachments WHERE message_uuid = ?`);
+const get = Database.prepare(`SELECT * FROM Attachments WHERE message_uuid = ?`);
 
-const all = async (uuid) => {
-    const rows = _all_.all(uuid);
+const fetch = async (uuid) => {
+    const row = get.get(uuid);
 
-    if (!rows || rows.length == 0)
+    if (!row)
         return;
 
-    await Promise.all(
-        rows.map(async row => {
-            row.file_url = await getUrl(row.file_id);
+    row.file_url = await getUrl(row.file_id);
 
-            if (row.thumb)
-                row.thumb_url = await getUrl(row.thumb);
-        })
-    );
+    if (row.thumb)
+        row.thumb_url = await getUrl(row.thumb);
 
-    return rows;
+    return row;
 }
 
 /******************************************************************************************
@@ -107,5 +103,5 @@ setInterval(() => clear_cache.run(), 60 * 60 * 1000);
 module.exports = {
     insert: (uuid, att) => insert.run(uuid, att.file_id, att.file_name || "", att.mime_type || "", att.file_unique_id || "", att.file_size || 0, att.thumb?.file_id || ""),
     getUrl,
-    all
+    fetch
 };
