@@ -41,6 +41,8 @@ Database.exec(`
     CREATE TABLE IF NOT EXISTS Tokens (
         token VARCHAR(64) PRIMARY KEY,
         user_id DOUBLE NOT NULL,
+        group_id DOUBLE DEFAULT NULL,
+        message_id DOUBLE DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
 `);
@@ -151,6 +153,8 @@ const removeToken = Database.prepare(`DELETE FROM Tokens WHERE token = ?`);
 
 const clear_token = Database.prepare(`DELETE FROM Tokens WHERE created_at < datetime('now', '-1 hour')`);
 
+const update_token_message = Database.prepare(`UPDATE Tokens SET group_id = ?, message_id = ? WHERE token = ?`);
+
 const generateAccessLink = (msg) => {
     if (msg.chat.type !== 'private')
     {
@@ -172,7 +176,7 @@ const generateAccessLink = (msg) => {
     
     const url = CONFIG.server.url || `http://localhost:${CONFIG.server.port}`;
 
-    return [true, `${url}/api/auth/token?token=${token}`];
+    return [true, `${url}/api/auth/token?token=${token}`, token];
 };
 
 Telegram.registerCommand('logs', async (msg) => {
@@ -183,21 +187,22 @@ Telegram.registerCommand('logs', async (msg) => {
 
 Telegram.registerCommand('login', async (msg) => {
     
-    const [status, url] = generateAccessLink(msg);
+    const [status, url, token] = generateAccessLink(msg);
 
     if (!status)
         return;
     
-    Telegram.bot.sendMessage(msg.chat.id, `Login here: ${url} (Valid for 1 hour)`, { disable_web_page_preview: true });
+    Telegram.bot.sendMessage(msg.chat.id, `Login here: ${url} (Valid for 1 hour)`, { disable_web_page_preview: true })
+        .then((sent) => update_token_message.run(msg.chat.id, sent.message_id, token));
 });
 
 Telegram.registerCommand('app', async (msg) => {
-    const [status, url] = generateAccessLink(msg);
+    const [status, url, token] = generateAccessLink(msg);
 
     if (!status)
         return;
 
-    Telegram.bot.sendMessage(msg.chat.id, "Click the button below to open LogEgram in Telegram:", {
+    const ulx = {
         reply_markup: {
             inline_keyboard: [
                 [
@@ -208,10 +213,12 @@ Telegram.registerCommand('app', async (msg) => {
                 ]
             ]
         }
-    });
+    };
+
+    Telegram.bot.sendMessage(msg.chat.id, "Click the button below to open LogEgram in Telegram:", ulx)
+    .then((sent) => update_token_message.run(msg.chat.id, sent.message_id, token));
 });
         
-
 WebApp.get('/api/auth/token', async (req, res) => {
     const { token } = req.query;
 
@@ -222,6 +229,9 @@ WebApp.get('/api/auth/token', async (req, res) => {
 
     if (!row)
         return res.status(403).json({ status: false, error: "Invalid token." });
+
+    if (row.group_id && row.message_id)
+        Telegram.bot.deleteMessage(row.group_id, row.message_id).catch(() => { });
 
     const createdAt = new Date(row.created_at);
 
