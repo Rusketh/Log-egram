@@ -68,10 +68,8 @@ WebApp.use(express.json());
 WebApp.use(cookieParser());
 
 /******************************************************************************************
- * Telegram SSO
+ * Middleware
  */
-
-const Secret = crypto.createHash('sha256').update(CONFIG.telegram.token).digest();
 
 const checkAuth = async (req, res, next) => {
     const sessionId = req.cookies.session_id;
@@ -80,7 +78,7 @@ const checkAuth = async (req, res, next) => {
 
     if (!sessionId)
         return next();
-    
+
     const session = get.get(sessionId);
 
     if (session)
@@ -89,14 +87,41 @@ const checkAuth = async (req, res, next) => {
     next();
 };
 
-const forceAuth = async(req, res, next) => {
+const forceAuth = async (req, res, next) => {
+    if (!CONFIG.signin.with_telegram)
+        return res.status(403).json({ status: false, error: "Login via Telegram is not enabled.\nUse /login to login with a link." });
+
     if (!req.user)
         return res.status(403).redirect('api/auth/login');
-    
+
     next();
 };
 
+/******************************************************************************************
+ * Logout
+ */
+
+WebApp.get('/api/auth/logout', checkAuth, forceAuth, (req, res) => {
+    const sessionId = req.cookies.session_id;
+
+    if (sessionId) remove.run(sessionId);
+
+    res.clearCookie('session_id');
+
+    res.redirect('/');
+});
+
+/******************************************************************************************
+ * Telegram SSO
+ */
+
+
+const Secret = crypto.createHash('sha256').update(CONFIG.telegram.token).digest();
+
 WebApp.get('/api/auth/redirect', (req, res) => {
+    if (!CONFIG.signin.with_telegram)
+        return res.status(403).json({ status: false, error: "Login via Telegram is not enabled." });
+
     const { id, first_name, last_name, username, photo_url, auth_date, hash } = req.query;
 
     if (!hash || !id || !auth_date)
@@ -133,19 +158,10 @@ WebApp.get('/api/auth/redirect', (req, res) => {
     res.redirect('/');
 });
 
-WebApp.get('/api/auth/logout', checkAuth, forceAuth, (req, res) => {
-    const sessionId = req.cookies.session_id;
-
-    if (sessionId) remove.run(sessionId);
-
-    res.clearCookie('session_id');
-
-    res.redirect('/');
-});
-
 /******************************************************************************************
  * Telegram Login via Message
  */
+
 
 const insertToken = Database.prepare(`INSERT INTO Tokens (token, user_id) VALUES (?, ?)`);
 
@@ -158,14 +174,12 @@ const update_token_message = Database.prepare(`UPDATE Tokens SET group_id = ?, m
 const expired_tokens = Database.prepare(`SELECT * FROM Tokens WHERE created_at < datetime('now', '-1 hour')`);
 
 const generateAccessLink = (msg) => {
-    if (msg.chat.type !== 'private')
-    {
+    if (msg.chat.type !== 'private') {
         Telegram.bot.sendMessage(msg.chat.id, "Please use this command in a private chat with the bot.");
         return [false, null];
     }
 
-    if (!Groups.all().some(async (group) => await Telegram.isAdmin(group, msg.from)))
-    {
+    if (!Groups.all().some(async (group) => await Telegram.isAdmin(group, msg.from))) {
         Telegram.bot.sendMessage(msg.chat.id, "You must be an admin of at least one group the bot is in to use this command.");
         return [false, null];
     }
@@ -175,54 +189,74 @@ const generateAccessLink = (msg) => {
     const token = crypto.randomBytes(32).toString('hex');
 
     insertToken.run(token, msg.from.id);
-    
+
     const url = CONFIG.server.url || `http://localhost:${CONFIG.server.port}`;
 
     return [true, `${url}/api/auth/token?token=${token}`, token];
 };
 
-Telegram.registerCommand('logs', async (msg) => {
-    const url = CONFIG.server.url || `http://localhost:${CONFIG.server.port}`;
+if (CONFIG.signin.with_link) {
+    Telegram.registerCommand('logs', async (msg) => {
+        const url = CONFIG.server.url || `http://localhost:${CONFIG.server.port}`;
 
-    Telegram.bot.sendMessage(msg.chat.id, `LogeGram: ${url}\nUse "/login" to generate an access link.\nUse /app to open in Telegram.`, { disable_web_page_preview: true });
-});
+        Telegram.bot.sendMessage(msg.chat.id, `LogeGram: ${url}\nUse "/login" to generate an access link.\nUse /app to open in Telegram.`, { disable_web_page_preview: true });
+    });
 
-Telegram.registerCommand('login', async (msg) => {
-    
-    const [status, url, token] = generateAccessLink(msg);
+    Telegram.registerCommand('login', async (msg) => {
 
-    if (!status)
-        return;
-    
-    Telegram.bot.sendMessage(msg.chat.id, `Login here: ${url} (Valid for 1 hour)`, { disable_web_page_preview: true })
-        .then((sent) => update_token_message.run(msg.chat.id, sent.message_id, token));
-});
+        const [status, url, token] = generateAccessLink(msg);
 
-Telegram.registerCommand('app', async (msg) => {
-    const [status, url, token] = generateAccessLink(msg);
+        if (!status)
+            return;
 
-    if (!status)
-        return;
+        Telegram.bot.sendMessage(msg.chat.id, `Login here: ${url} (Valid for 1 hour)`, { disable_web_page_preview: true })
+            .then((sent) => update_token_message.run(msg.chat.id, sent.message_id, token));
+    });
 
-    const ulx = {
-        reply_markup: {
-            inline_keyboard: [
-                [
-                    {
-                        text: "Open in App",
-                        web_app: { url }
-                    }
+    Telegram.registerCommand('app', async (msg) => {
+        const [status, url, token] = generateAccessLink(msg);
+
+        if (!status)
+            return;
+
+        const ulx = {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        {
+                            text: "Open in App",
+                            web_app: { url }
+                        }
+                    ]
                 ]
-            ]
-        }
-    };
+            }
+        };
 
-    Telegram.bot.sendMessage(msg.chat.id, "Click the button below to open LogEgram in Telegram:", ulx)
-    .then((sent) => update_token_message.run(msg.chat.id, sent.message_id, token));
-});
-        
+        Telegram.bot.sendMessage(msg.chat.id, "Click the button below to open LogEgram in Telegram:", ulx)
+            .then((sent) => update_token_message.run(msg.chat.id, sent.message_id, token));
+    });
+
+    setInterval(() => {
+
+        const expired = expired_tokens.all();
+
+        if (!expired || expired.length == 0)
+            return;
+
+        for (let row of expired) {
+            if (row.group_id && row.message_id)
+                Telegram.bot.deleteMessage(row.group_id, row.message_id).catch(() => { });
+        }
+
+        clear_token.run();
+    }, 30 * 60 * 1000);
+}
+
 WebApp.get('/api/auth/token', async (req, res) => {
     const { token } = req.query;
+
+    if (!CONFIG.signin.with_link)
+        return res.status(403).json({ status: false, error: "Login via token is not enabled." });
 
     if (!token)
         return res.status(400).json({ status: false, error: "Token is required." });
@@ -251,21 +285,6 @@ WebApp.get('/api/auth/token', async (req, res) => {
     res.redirect('/');
 });
 
-setInterval(() => {
-
-    const expired = expired_tokens.all();
-
-    if (!expired || expired.length == 0)
-        return;
-
-    for (let row of expired) {
-        if (row.group_id && row.message_id)
-            Telegram.bot.deleteMessage(row.group_id, row.message_id).catch(() => { });
-    }
-
-    clear_token.run();
-}, 30 * 60 * 1000);
-
 /******************************************************************************************
  * Web Pages
  */
@@ -275,7 +294,7 @@ WebApp.use('/assets', express.static(path.join(__dirname, "views/assets")));
 const login_html = fs.readFileSync(path.join(__dirname, "views/login.html"), 'utf8');
 
 WebApp.get("/api/auth/login", checkAuth, async (req, res) => {
-    
+
     if (req.user)
         return res.redirect("/");
 
@@ -308,12 +327,11 @@ const filterByGroupAdmin = (user, groups) => {
     if (user.user_admin)
         return groups;
 
-    const results = [ ];
+    const results = [];
 
-    const cache = { };
+    const cache = {};
 
-    for(let group of groups)
-    {
+    for (let group of groups) {
         let cached = cache[group.group_id];
 
         if (cached == null)
@@ -339,7 +357,7 @@ WebApp.get('/api/users', checkAuth, async (req, res) => {
 
     //TODO: Filter users 
 
-    return res.json({status: true, users});
+    return res.json({ status: true, users });
 });
 
 WebApp.get('/api/users/:group_id', checkAuth, async (req, res) => {
@@ -347,12 +365,12 @@ WebApp.get('/api/users/:group_id', checkAuth, async (req, res) => {
     if (!req.user)
         return req.status(403).json({ status: false, error: "Not logged in." });
 
-    if (!Telegram.isAdmin({group_id: req.params.group_id}, req.user))
+    if (!Telegram.isAdmin({ group_id: req.params.group_id }, req.user))
         return req.status(403).json({ status: false, error: "Invalid permissions." });
 
     let users = Users.memberOf(req.params.group_id);
 
-    return res.json({status: true, users});
+    return res.json({ status: true, users });
 });
 
 /******************************************************************************************
@@ -365,10 +383,10 @@ WebApp.get('/api/groups', checkAuth, async (req, res) => {
         return req.status(403).json({ status: false, error: "Not logged in." });
 
     let groups = req.query.search ? Groups.query(req.query.search) : Groups.all();
-    
+
     groups = filterByGroupAdmin(req.user, groups);
 
-    return res.json({status: true, groups});
+    return res.json({ status: true, groups });
 });
 
 /******************************************************************************************
@@ -395,7 +413,7 @@ WebApp.get('/api/messages/', checkAuth, async (req, res) => {
 
     messages = filterByGroupAdmin(req.user, messages);
 
-    return res.json({status: true, messages, page: req.params.page, total});
+    return res.json({ status: true, messages, page: req.params.page, total });
 });
 
 

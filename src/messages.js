@@ -65,7 +65,7 @@ const insert = Database.prepare(`
     ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? )
 `);
 
-const addMessage = async (message, activity, version) => {    
+const addMessage = async (message, activity, version) => {
     const uuid = crypto.randomUUID();
 
     let group_id = null;
@@ -113,7 +113,7 @@ const addMessage = async (message, activity, version) => {
     if (message.voice)
         Attachments.insert(uuid, message.voice);
 
-    if(message.video)
+    if (message.video)
         Attachments.insert(uuid, message.video);
 
     if (message.document)
@@ -122,10 +122,9 @@ const addMessage = async (message, activity, version) => {
     if (message.audio)
         Attachments.insert(uuid, message.audio);
 
-    if (message.photo)
-    {
+    if (message.photo) {
         message.photo.sort((a, b) => a.file_size - b.file_size);
-        
+
         const photo = message.photo[message.photo.length - 1];
 
         if (!photo.thumb) photo.thumb = message.photo[1] || message.photo[0];
@@ -165,51 +164,45 @@ const countEdits = Database.prepare(`SELECT COUNT(*) as count FROM Messages WHER
 
 const countFiles = Database.prepare(`SELECT COUNT(*) as count FROM Attachments WHERE message_uuid = ?`);
 
-const query = async ({from, to, group_id, user_id, message_id, activity, include_stickers, include_attachments, page, limit}) => {
-   
+const query = async ({ from, to, group_id, user_id, message_id, activity, include_stickers, include_attachments, page, limit }) => {
+
     if (page && !limit)
         limit = 50;
     else if (limit && !page)
         page = 0;
 
-    const conditions = [ ];
-    const params = [ ];
+    const conditions = [];
+    const params = [];
     let i;
 
     let query = "FROM Messages";
 
-    if (from)
-    {
+    if (from) {
         conditions.push("timestamp >= ?");
         params.push(from);
     }
 
-    if (to)
-    {
+    if (to) {
         conditions.push("timestamp <= ?");
         params.push(to);
     }
 
-    if (group_id)
-    {
+    if (group_id) {
         conditions.push("group_id = ?");
         params.push(group_id);
     }
 
-    if (user_id)
-    {
+    if (user_id) {
         conditions.push("poster_id = ?");
         params.push(user_id);
     }
 
-    if (message_id)
-    {
+    if (message_id) {
         conditions.push("message_id = ?");
         params.push(message_id);
     }
 
-    if (activity)
-    {
+    if (activity) {
         conditions.push("activity = ?");
         params.push(activity);
         i = params.length;
@@ -222,14 +215,12 @@ const query = async ({from, to, group_id, user_id, message_id, activity, include
 
     query = `${query} ORDER BY timestamp DESC`;
 
-    if (limit)
-    {
+    if (limit) {
         query = `${query} LIMIT ?`;
         params.push(limit);
     }
 
-    if (page && page > 0)
-    {
+    if (page && page > 0) {
         query = `${query} OFFSET ?`;
         params.push(page * page);
     }
@@ -239,8 +230,7 @@ const query = async ({from, to, group_id, user_id, message_id, activity, include
     if (activity == "POST")
         rows.map(row => row.edit_count = countEdits.get(row.group_id, row.message_id)?.count || 0);
 
-    if (include_stickers)
-    {
+    if (include_stickers) {
         await Promise.all(rows
             .filter(row => row.sticker_id)
             .map(async (row) => row.sticker_path = await Attachments.getUrl(row.sticker_id))
@@ -252,6 +242,25 @@ const query = async ({from, to, group_id, user_id, message_id, activity, include
 
     return [rows, total];
 };
+
+/******************************************************************************************
+ * Cleanup
+ */
+
+const removeOldMessages = Database.prepare(`DELETE FROM Messages WHERE timestamp < datetime('now', '-? days')`);
+
+const removeOldAttachments = Database.prepare(`DELETE FROM Attachments WHERE timestamp < datetime('now', '-? days')`);
+
+setInterval(() => {
+    if (!CONFIG.retention.days || CONFIG.retention.days < 1)
+        return;
+
+    removeOldMessages.run(CONFIG.retention.days);
+
+    removeOldAttachments.run(CONFIG.retention.days);
+
+    console.log(`Cleaned up old messages and attachments older than ${CONFIG.retention.days} days.`);
+}, 24 * 60 * 60 * 1000);
 
 /******************************************************************************************
  * Exports

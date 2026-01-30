@@ -105,6 +105,25 @@ const isAdmin = ({ id }) => {
 const setPhoto = Database.prepare("UPDATE Users SET photo_url = ? WHERE user_id = ?");
 
 /********************************************************************
+ * Cleanup
+ ********************************************************************/
+
+const removeOldUsers = Database.prepare(`DELETE FROM Users WHERE created_at < datetime('now', '-? days')`);
+
+const removeOldGroupMembers = Database.prepare(`DELETE FROM GroupMembers WHERE joined_at < datetime('now', '-? days')`);
+
+setInterval(() => {
+    if (!CONFIG.retention.days || CONFIG.retention.days < 1)
+        return;
+
+    removeOldUsers.run(CONFIG.retention.days);
+
+    removeOldGroupMembers.run(CONFIG.retention.days);
+
+    console.log(`Cleaned up old users and group members older than ${CONFIG.retention.days} days.`);
+}, 24 * 60 * 60 * 1000);
+
+/********************************************************************
  * Exports
  ********************************************************************/
 

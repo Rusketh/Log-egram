@@ -63,14 +63,15 @@ Database.exec(`
         file_unique_id VARCHAR(16),
         file_size DOUBLE,
         thumb VARCHAR(256),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (file_id, message_uuid)
     )
 `);
 
 const insert = Database.prepare(`
     INSERT INTO Attachments (
-        message_uuid, file_id, file_name, mime_type, file_unique_id, file_size, thumb
-    ) VALUES ( ?, ?, ?, ?, ?, ?, ? )
+        message_uuid, file_id, file_name, mime_type, file_unique_id, file_size, thumb, timestamp
+    ) VALUES ( ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP )
     ON CONFLICT(file_id, message_uuid) DO NOTHING
 `);
 
