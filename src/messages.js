@@ -164,7 +164,7 @@ const countEdits = Database.prepare(`SELECT COUNT(*) as count FROM Messages WHER
 
 const countFiles = Database.prepare(`SELECT COUNT(*) as count FROM Attachments WHERE message_uuid = ?`);
 
-const query = async ({ from, to, group_id, user_id, message_id, activity, include_stickers, include_attachments, page, limit }) => {
+const query = async ({ from, to, group_id, user_id, message_id, activity, include_stickers, include_attachments, search_query, page, limit }) => {
 
     if (page && !limit)
         limit = 50;
@@ -206,6 +206,11 @@ const query = async ({ from, to, group_id, user_id, message_id, activity, includ
         conditions.push("activity = ?");
         params.push(activity);
         i = params.length;
+    }
+
+    if (search_query && search_query.length > 0) {
+        conditions.push("message_text LIKE ?");
+        params.push(`%${search_query}%`);
     }
 
     if (conditions.length > 0)

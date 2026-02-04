@@ -8,10 +8,9 @@ const groupValue = document.getElementById('group-select-value');
 
 let Groups = [];
 
-async function UpdateGroups()
-{
+async function UpdateGroups() {
     const res = await fetch('/api/groups');
-    
+
     if (res.status === 401 || !res.ok)
         return;
 
@@ -23,8 +22,7 @@ async function UpdateGroups()
     Groups = result.groups;
 }
 
-async function ShowGroups(filter)
-{
+async function ShowGroups(filter) {
     groupOptions.innerHTML = "";
 
     const allDiv = document.createElement('div');
@@ -60,7 +58,7 @@ async function ShowGroups(filter)
     });
 }
 
-groupInput.addEventListener('focus', async() => {
+groupInput.addEventListener('focus', async () => {
     groupOptions.style.display = 'block';
     const query = null; //groupInput.value.toLowerCase();
     await UpdateGroups()
@@ -89,15 +87,14 @@ const userValue = document.getElementById('user-select-value');
 
 let Users = [];
 
-async function UpdateUsers()
-{
+async function UpdateUsers() {
     let res;
 
     if (groupValue.value != "")
         res = await fetch(`/api/users/${groupValue.value}`);
     else
         res = await fetch('/api/users');
-    
+
     if (res.status === 401 || !res.ok)
         return;
 
@@ -109,8 +106,7 @@ async function UpdateUsers()
     Users = result.users;
 }
 
-async function ShowUsers(filter)
-{
+async function ShowUsers(filter) {
     userOptions.innerHTML = "";
 
     const allDiv = document.createElement('div');
@@ -146,7 +142,7 @@ async function ShowUsers(filter)
     });
 }
 
-userInput.addEventListener('focus', async() => {
+userInput.addEventListener('focus', async () => {
     userOptions.style.display = 'block';
     const query = null; //userInput.value.toLowerCase();
     await UpdateUsers()
@@ -173,16 +169,14 @@ const attachmentWindow = document.getElementById('attachment-container');
 const attachmentContent = document.getElementById('attachment-content');
 const closeAttachmentButton = document.getElementById('close-attachment-btn');
 
-async function ShowAttachment(url)
-{
+async function ShowAttachment(url) {
     setTimeout(() => {
         attachmentWindow.style.display = 'block';
         attachmentContent.innerHTML = EmbedFile({ file_url: url }, true);
     }, 100);
 }
 
-closeAttachmentButton.onclick = function()
-{
+closeAttachmentButton.onclick = function () {
     attachmentWindow.style.display = 'none';
     attachmentContent.innerHTML = '';
 }
@@ -198,8 +192,7 @@ document.addEventListener('click', (e) => {
  * RenderMessage
  */
 
-const EmbedSticker = function(path, size = 100)
-{
+const EmbedSticker = function (path, size = 100) {
     if (!path) return '';
 
     if (path.endsWith(".webp") || path.endsWith(".png") || path.endsWith(".jpg"))
@@ -210,37 +203,32 @@ const EmbedSticker = function(path, size = 100)
         return `<video src="${path}" width="${size}" autoplay loop muted playsinline style="aspect-ratio: 1/1; object-fit: contain;"></video>`;
 
     //if (path.endsWith(".tgs"))
-        // TODO: This;
-    
+    // TODO: This;
+
     return `<a href=${path} style="font-size: 10px;">Unsupported Sticker</span>`;
 }
 
-const EmbedFile = function(file, expanded = false)
-{
+const EmbedFile = function (file, expanded = false) {
     if (!file) return '';
 
     let html = `<div>`;
 
     let canExpand = false;
-    
+
     const cls = expanded ? `class="open-attachment"` : `class="closed-attachment"`;
 
-    if (!expanded && file.thumb_url)
-    {
+    if (!expanded && file.thumb_url) {
         html += `<img ${cls} src="${file.thumb_url}" alt="${file.file_name || "File"}">`;
         canExpand = true;
     }
-    else if (!file.file_url)
-    {
+    else if (!file.file_url) {
         html += '';
     }
-    else if (file.file_url.endsWith(".webp") || file.file_url.endsWith(".png") || file.file_url.endsWith(".jpg"))
-    {
+    else if (file.file_url.endsWith(".webp") || file.file_url.endsWith(".png") || file.file_url.endsWith(".jpg")) {
         html += `<img ${cls} src="${file.file_url}" alt="${file.file_name || "File"}">`;
         canExpand = true;
     }
-    else if (file.file_url.endsWith(".webm") || file.file_url.endsWith(".mp4")) 
-    {
+    else if (file.file_url.endsWith(".webm") || file.file_url.endsWith(".mp4")) {
         html += `
             <video src="${file.file_url}" width="${size}" muted playsinline>
                 <a href=${file.file_url}>Unsupported Video Format</a>
@@ -248,8 +236,7 @@ const EmbedFile = function(file, expanded = false)
         `;
         canExpand = true;
     }
-    else if (file.file_url.endsWith(".mp3") || file.file_url.endsWith(".ogg") || file.file_url.endsWith(".wav"))
-    {
+    else if (file.file_url.endsWith(".mp3") || file.file_url.endsWith(".ogg") || file.file_url.endsWith(".wav")) {
         html += `
             <audio controls ${cls}>
                 <source src="${file.file_url}">
@@ -257,8 +244,7 @@ const EmbedFile = function(file, expanded = false)
             </audio>
         `;
     }
-    else
-    {
+    else {
         html += `<i>Unknown File Type</i>`;
     }
 
@@ -267,7 +253,7 @@ const EmbedFile = function(file, expanded = false)
 
     if (canExpand && !expanded)
         html += `<button class="expand-attachment-button" onclick="ShowAttachment('${file.file_url}')">&#10530; Expand</button> `;
- 
+
     html += `<button class="expand-attachment-button" onclick="window.open('${file.file_url}', '_blank')">&#11123;Download</button>`;
 
     html += `
@@ -278,8 +264,7 @@ const EmbedFile = function(file, expanded = false)
     return html;
 }
 
-const RenderMessage = function(message)
-{
+const RenderMessage = function (message) {
     let html = ``;
 
     if (message.sticker_path)
@@ -291,7 +276,7 @@ const RenderMessage = function(message)
     let text = "";
 
     if (message.message_text)
-        text = message.message_text.replaceAll("\n","<br>");
+        text = message.message_text.replaceAll("\n", "<br>");
     else
         text = "<i>No message text</i>";
 
@@ -302,15 +287,13 @@ const RenderMessage = function(message)
  * Show History
  */
 
-async function HideHistory(button, history, message)
-{
+async function HideHistory(button, history, message) {
     button.onclick = () => ShowHistory(button, history, message);
     button.innerText = "Expand";
     history.style.display = 'none';
 }
 
-async function ShowHistory(button, history, message)
-{
+async function ShowHistory(button, history, message) {
     button.onclick = () => HideHistory(button, history, message);
     button.innerText = "Colapse";
     history.style.display = 'table-row';
@@ -325,23 +308,20 @@ async function ShowHistory(button, history, message)
 
     const res = await fetch(`/api/messages?${params.toString()}`);
 
-    if (res.status === 401 || !res.ok)
-    {
+    if (res.status === 401 || !res.ok) {
         alert("Internal error.");
         return;
     }
 
     const result = await res.json();
 
-    if (!result.status)
-    {
+    if (!result.status) {
         alert(result.error || "Uknown internal error.");
         return;
     }
 
-    if (!result.messages)
-    {
-        Messages = [ ];
+    if (!result.messages) {
+        Messages = [];
         alert("No results found.");
         return;
     }
@@ -400,12 +380,13 @@ const nextPage = document.getElementById('next-page');
 const firstPage = document.getElementById('fist-page');
 const lastPage = document.getElementById('last-page');
 
+const searchQuery = document.getElementById('search-query');
+
 let Page = 0;
 let Total = 0;
 let Messages = [];
 
-async function UpdateMessages(page = 0)
-{
+async function UpdateMessages(page = 0) {
     if (page < 0)
         page = 0;
 
@@ -426,29 +407,27 @@ async function UpdateMessages(page = 0)
     params.append('activity', "POST");
     params.append('include_stickers', showStickers.checked);
     params.append('include_attachments', showAttachments.checked);
+    params.append('search_query', searchQuery.value);
 
     params.append('page', page);
     params.append('limit', pageLimit.value);
 
     const res = await fetch(`/api/messages?${params.toString()}`);
 
-    if (res.status === 401 || !res.ok)
-    {
+    if (res.status === 401 || !res.ok) {
         alert("Internal error.");
         return;
     }
 
     const result = await res.json();
 
-    if (!result.status)
-    {
+    if (!result.status) {
         alert(result.error || "Uknown internal error.");
         return;
     }
 
-    if (!result.messages)
-    {
-        Messages = [ ];
+    if (!result.messages) {
+        Messages = [];
         alert("No results found.");
         return;
     }
@@ -458,14 +437,13 @@ async function UpdateMessages(page = 0)
     Page = page;
 }
 
-async function ShowMessages()
-{
+async function ShowMessages() {
     messagesTableBody.innerHTML = '';
 
     Messages.forEach(message => {
         const row = document.createElement('tr');
 
-       row.innerHTML = `
+        row.innerHTML = `
             <td>${new Date(message.timestamp).toLocaleString()}</td>
             <td>${message.group_name || msg.group_id}</td>
             <td>${message.poster_name}</td>
@@ -478,7 +456,7 @@ async function ShowMessages()
 
         const history = document.createElement('tr');
         history.className = 'history-row';
-        
+
         if (message.edit_count > 0) {
             const button = document.createElement('button');
             button.className = "expand-btn";
@@ -489,7 +467,7 @@ async function ShowMessages()
 
             controls.appendChild(button)
         }
-        
+
         messagesTableBody.appendChild(row);
         messagesTableBody.appendChild(history);
     });
@@ -497,7 +475,7 @@ async function ShowMessages()
     const pages = Math.ceil(Total / pageLimit.value) + 1;
 
     pageNumber.innerHTML = `Page ${Page + 1} / ${pages}`;// | Results ${(Page) * pageLimit.value} / ${Total}`;
-    
+
     previousPage.style.display = (Page > 0) ? "block" : "none";
     nextPage.style.display = (Page < pages - 1) ? "block" : "none";
 

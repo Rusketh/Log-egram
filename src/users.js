@@ -1,5 +1,7 @@
 const { Database } = require("./database");
 
+//const Attachments = require("./attachments");
+
 /******************************************************************************************
  * Create Tables
  */
@@ -103,6 +105,21 @@ const isAdmin = ({ id }) => {
  ********************************************************************/
 
 const setPhoto = Database.prepare("UPDATE Users SET photo_url = ? WHERE user_id = ?");
+
+/*const updatePhoto = async (user) => {
+    const res = await fetch(`https://api.telegram.org/bot${CONFIG.telegram.token}/getUserProfilePhotos?user_id=${user.id || user.user_id}`);
+
+    const data = await res.json();
+
+    if (!data.ok)
+        return;
+
+    const photo = data.result.photos[0][0];
+    
+    setPhoto.run(photo.file_id, user.id || user.user_id);
+
+    return await Attachments.getFile(photo.file_id);
+};*/
 
 /********************************************************************
  * Cleanup

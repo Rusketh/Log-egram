@@ -151,8 +151,6 @@ WebApp.get('/api/auth/redirect', (req, res) => {
 
     insert.run(sessionId, id, auth_date);
 
-    Users.setPhoto(id, photo_url);
-
     res.cookie('session_id', sessionId, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
 
     res.redirect('/');
@@ -407,6 +405,7 @@ WebApp.get('/api/messages/', checkAuth, async (req, res) => {
         include_stickers: req.query.include_stickers == "true",
         include_attachments: req.query.include_attachments == "true",
         activity: req.query.activity,
+        search_query: req.query.search_query,
         page: req.query.page,
         limit: req.query.limit || 0
     });
@@ -415,7 +414,6 @@ WebApp.get('/api/messages/', checkAuth, async (req, res) => {
 
     return res.json({ status: true, messages, page: req.params.page, total });
 });
-
 
 /******************************************************************************************
  * Start Server
