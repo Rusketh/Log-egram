@@ -347,7 +347,7 @@ WebApp.get("/", checkAuth, forceAuth, async (req, res) => {
  * Util Functions
  */
 
-const filterByGroupAdmin = (user, groups) => {
+const filterByGroupAdmin = async (user, groups) => {
     if (user.user_admin)
         return groups;
 
@@ -359,7 +359,7 @@ const filterByGroupAdmin = (user, groups) => {
         let cached = cache[group.group_id];
 
         if (cached == null)
-            cached = cache[group.group_id] = Telegram.isAdmin(group, user);
+            cached = cache[group.group_id] = await Telegram.isAdmin(group, user);
 
         if (cached == true)
             results.push(group);
@@ -408,7 +408,7 @@ WebApp.get('/api/groups', checkAuth, async (req, res) => {
 
     let groups = req.query.search ? Groups.query(req.query.search) : Groups.all();
 
-    groups = filterByGroupAdmin(req.user, groups);
+    groups = await filterByGroupAdmin(req.user, groups);
 
     return res.json({ status: true, groups });
 });
@@ -436,7 +436,7 @@ WebApp.get('/api/messages/', checkAuth, async (req, res) => {
         limit: req.query.limit || 0
     });
 
-    messages = filterByGroupAdmin(req.user, messages);
+    messages = await filterByGroupAdmin(req.user, messages);
 
     return res.json({ status: true, messages, page: req.params.page, total });
 });
