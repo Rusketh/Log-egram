@@ -92,7 +92,7 @@ const forceAuth = async (req, res, next) => {
         return res.status(403).json({ status: false, error: "Login via Telegram is not enabled.\nUse /login to login with a link." });
 
     if (!req.user)
-        return res.status(403).redirect('api/auth/login');
+        return res.status(403).redirect('/api/auth/login');
 
     next();
 };
