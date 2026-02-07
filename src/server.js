@@ -301,6 +301,7 @@ const privateOptions = {
 
 WebApp.use('/assets',
     express.static(path.join(__dirname, "views/public"), publicOptions),
+    checkAuth,
     (req, res, next) => {
         if (!req.user)
             return res.status(401).send("Unauthorized");
