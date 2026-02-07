@@ -361,7 +361,7 @@ const filterByGroupAdmin = (user, groups) => {
         if (cached == null)
             cached = cache[group.group_id] = Telegram.isAdmin(group, user);
 
-        if (cached != true)
+        if (cached == true)
             results.push(group);
     }
 
