@@ -284,10 +284,35 @@ WebApp.get('/api/auth/token', async (req, res) => {
 });
 
 /******************************************************************************************
- * Web Pages
+ * Assets
  */
 
-WebApp.use('/assets', express.static(path.join(__dirname, "views/assets")));
+const publicOptions = {
+    maxAge: '1d',
+    immutable: true
+};
+
+const privateOptions = {
+    setHeaders: (res, path) => {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.setHeader('Pragma', 'no-cache');
+    }
+};
+
+WebApp.use('/assets',
+    express.static(path.join(__dirname, "views/public"), publicOptions),
+    (req, res, next) => {
+        if (!req.user)
+            return res.status(401).send("Unauthorized");
+        next();
+    },
+    express.static(path.join(__dirname, "views/private"), privateOptions),
+    (req, res) => res.status(404).send("Not Found")
+);
+
+/******************************************************************************************
+ * Web Pages
+ */
 
 const login_html = fs.readFileSync(path.join(__dirname, "views/login.html"), 'utf8');
 
@@ -349,7 +374,7 @@ const filterByGroupAdmin = (user, groups) => {
 WebApp.get('/api/users', checkAuth, async (req, res) => {
 
     if (!req.user)
-        return req.status(400).json({ status: false, error: "Not logged in." });
+        return res.status(400).json({ status: false, error: "Not logged in." });
 
     let users = req.query.search ? Users.query(req.query.search) : Users.all();
 
@@ -361,10 +386,10 @@ WebApp.get('/api/users', checkAuth, async (req, res) => {
 WebApp.get('/api/users/:group_id', checkAuth, async (req, res) => {
 
     if (!req.user)
-        return req.status(403).json({ status: false, error: "Not logged in." });
+        return res.status(403).json({ status: false, error: "Not logged in." });
 
     if (!Telegram.isAdmin({ group_id: req.params.group_id }, req.user))
-        return req.status(403).json({ status: false, error: "Invalid permissions." });
+        return res.status(403).json({ status: false, error: "Invalid permissions." });
 
     let users = Users.memberOf(req.params.group_id);
 
@@ -378,7 +403,7 @@ WebApp.get('/api/users/:group_id', checkAuth, async (req, res) => {
 WebApp.get('/api/groups', checkAuth, async (req, res) => {
 
     if (!req.user)
-        return req.status(403).json({ status: false, error: "Not logged in." });
+        return res.status(403).json({ status: false, error: "Not logged in." });
 
     let groups = req.query.search ? Groups.query(req.query.search) : Groups.all();
 
@@ -394,7 +419,7 @@ WebApp.get('/api/groups', checkAuth, async (req, res) => {
 WebApp.get('/api/messages/', checkAuth, async (req, res) => {
 
     if (!req.user)
-        return req.status(403).json({ status: false, error: "Not logged in." });
+        return res.status(403).json({ status: false, error: "Not logged in." });
 
     let [messages, total] = await Messages.query({
         from: req.query.from,
