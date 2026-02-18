@@ -1,4 +1,4 @@
-const { Database } = require("./database");
+const { Database, Encrypt, Decrypt, Hash } = require('./database');
 
 //const Attachments = require("./attachments");
 
@@ -8,10 +8,10 @@ const { Database } = require("./database");
 
 Database.exec(`
     CREATE TABLE IF NOT EXISTS Users (
-        user_id DOUBLE PRIMARY KEY,
-        user_name VARCHAR(256) NOT NULL,
-        first_name VARCHAR(256) DEFAULT NULL,
-        last_name VARCHAR(256) DEFAULT NULL,
+        user_id VARCHAR(128) PRIMARY KEY,
+        user_name VARCHAR(512) NOT NULL,
+        first_name VARCHAR(512) DEFAULT NULL,
+        last_name VARCHAR(512) DEFAULT NULL,
         user_admin INT DEFAULT 0,
         photo_url VARCHAR(256) DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -22,7 +22,7 @@ Database.exec(`
 Database.exec(`
     CREATE TABLE IF NOT EXISTS GroupMembers (
         group_id DOUBLE NOT NULL,
-        user_id DOUBLE NOT NULL,
+        user_id VARCHAR(128) NOT NULL,
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (group_id, user_id)
     )
@@ -32,11 +32,30 @@ Database.exec(`
  * Database Search
  ********************************************************************/
 
-const byID = Database.prepare("SELECT * FROM Users WHERE user_id = ?");
+const _byID = Database.prepare("SELECT * FROM Users WHERE user_id = ?");
 
-const query = Database.prepare("SELECT * FROM Users WHERE user_name LIKE ? OR first_name LIKE ? OR last_name LIKE ? LIMIT 50");
+const byID = (id) => {
+    const user = _byID.get(Hash(id));
 
-const all = Database.prepare("SELECT * FROM Users");
+    if (user) {
+        user.user_name = Decrypt(user.user_name);
+        user.first_name = Decrypt(user.first_name);
+        user.last_name = Decrypt(user.last_name);
+    }
+
+    return user;
+};
+
+const _all = Database.prepare("SELECT * FROM Users LIMIT ? OFFSET ?");
+
+const all = (limit = 1000, page = 0) => _all.all(limit, limit * page).map(user => {
+    user.user_name = Decrypt(user.user_name);
+    user.first_name = Decrypt(user.first_name);
+    user.last_name = Decrypt(user.last_name);
+    return user;
+});
+
+const query = (query) => all().filter(user => user.user_name.includes(query) || user.first_name.includes(query) || user.last_name.includes(query));
 
 /********************************************************************
  * Insert Users
@@ -55,7 +74,7 @@ const insertUser = Database.prepare(`
 
 const registerUser = (user) => {
     if (!user) return;
-    insertUser.run(user.id, user.username, user.first_name || "", user.last_name || "");
+    insertUser.run(Hash(user.id), Encrypt(user.username), Encrypt(user.first_name || ""), Encrypt(user.last_name || ""));
 };
 
 /********************************************************************
@@ -71,7 +90,7 @@ const insertGroupMember = Database.prepare(`
 
 const registerGroupMember = (group, user) => {
     if (!group || !user) return;
-    insertGroupMember.run(group.id, user.id);
+    insertGroupMember.run(group.id, Hash(user.id));
 };
 
 /********************************************************************
@@ -93,33 +112,12 @@ const setAdmin = Database.prepare("UPDATE Users SET user_admin = ? WHERE user_id
 const isAdmin = ({ id }) => {
     if (!id) return false;
 
-    const user = byID.get(id);
+    const user = byID.get(Hash(id));
 
     if (!user) return false;
 
     return user.user_admin === 1;
 };
-
-/********************************************************************
- * Photos
- ********************************************************************/
-
-const setPhoto = Database.prepare("UPDATE Users SET photo_url = ? WHERE user_id = ?");
-
-/*const updatePhoto = async (user) => {
-    const res = await fetch(`https://api.telegram.org/bot${CONFIG.telegram.token}/getUserProfilePhotos?user_id=${user.id || user.user_id}`);
-
-    const data = await res.json();
-
-    if (!data.ok)
-        return;
-
-    const photo = data.result.photos[0][0];
-    
-    setPhoto.run(photo.file_id, user.id || user.user_id);
-
-    return await Attachments.getFile(photo.file_id);
-};*/
 
 /********************************************************************
  * Cleanup
@@ -145,14 +143,13 @@ setInterval(() => {
  ********************************************************************/
 
 module.exports = {
-    byID: (id) => byID.get(id),
-    query: (search) => query.all(`%${search}%`, `%${search}%`, `%${search}%`),
-    setAdmin: (id, value) => setAdmin.run(value ? 0 : 1, id),
-    setPhoto: (id, value) => setPhoto.run(value, id),
+    setAdmin: (id, value) => setAdmin.run(value ? 0 : 1, Hash(id)),
     memberOf: (group_id) => memberOf.all(group_id),
-    all: () => all.all(),
     registerGroupMember,
     registerUser,
     isAdmin,
     query,
+    byID,
+    all
 };
+

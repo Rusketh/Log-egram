@@ -380,7 +380,7 @@ const nextPage = document.getElementById('next-page');
 const firstPage = document.getElementById('fist-page');
 const lastPage = document.getElementById('last-page');
 
-const searchQuery = document.getElementById('search-query');
+//const searchQuery = document.getElementById('search-query');
 
 let Page = 0;
 let Total = 0;
@@ -407,7 +407,7 @@ async function UpdateMessages(page = 0) {
     params.append('activity', "POST");
     params.append('include_stickers', showStickers.checked);
     params.append('include_attachments', showAttachments.checked);
-    params.append('search_query', searchQuery.value);
+    //params.append('search_query', searchQuery.value);
 
     params.append('page', page);
     params.append('limit', pageLimit.value);

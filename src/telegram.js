@@ -1,5 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 
+const { Hash } = require('./database');
+
 const crypto = require('node:crypto');
 
 const CONFIG = require('./config');
@@ -20,9 +22,16 @@ bot.getMe().then((me) => {
  * Admin Check
  ********************************************************************/
 
-const isAdmin = async (group, user) => {
+const isAdmin = async (group, user, hashed = false) => {
     const admins = await bot.getChatAdministrators(group.group_id || group.id);
-    return admins.some((admin) => admin.user.id === user.user_id || user.id);
+
+    for (let admin of admins) {
+        const id = hashed ? Hash(admin.user.id) : admin.user.id;
+        if (id === user.user_id || id === user.id)
+            return true;
+    }
+
+    return false;
 };
 
 /********************************************************************
@@ -102,13 +111,6 @@ const Respond = (query, message, text) => {
 
     return bot.answerCallbackQuery(query.id, { text });
 };
-
-
-/********************************************************************
- * Utils
- ********************************************************************/
-
-
 
 /********************************************************************
  * Exports

@@ -359,7 +359,7 @@ const filterByGroupAdmin = async (user, groups) => {
         let cached = cache[group.group_id];
 
         if (cached == null)
-            cached = cache[group.group_id] = await Telegram.isAdmin(group, user);
+            cached = cache[group.group_id] = await Telegram.isAdmin(group, user, true);
 
         if (cached == true)
             results.push(group);
@@ -379,8 +379,6 @@ WebApp.get('/api/users', checkAuth, async (req, res) => {
 
     let users = req.query.search ? Users.query(req.query.search) : Users.all();
 
-    //TODO: Filter users 
-
     return res.json({ status: true, users });
 });
 
@@ -389,7 +387,7 @@ WebApp.get('/api/users/:group_id', checkAuth, async (req, res) => {
     if (!req.user)
         return res.status(403).json({ status: false, error: "Not logged in." });
 
-    if (!Telegram.isAdmin({ group_id: req.params.group_id }, req.user))
+    if (!Telegram.isAdmin({ group_id: req.params.group_id }, req.user, true))
         return res.status(403).json({ status: false, error: "Invalid permissions." });
 
     let users = Users.memberOf(req.params.group_id);

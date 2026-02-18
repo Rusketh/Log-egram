@@ -95,6 +95,15 @@ CONFIG.server.url = process.env.SERVER_URL || CONFIG.server.url;
 
 assert(CONFIG.server.url, `No Server url defined.\nThis can set in CONFIG under "server.url" or as enviroment value SERVER_URL.`);
 
+
+//This is for when using a config file and not enviroment values.
+process.env.DB_KEY = process.env.DB_KEY || CONFIG.database.key;
+
+//Encryption Key is not saved to config file.
+assert((!process.env.DB_KEY) || process.env.DB_KEY.length == 32, `Enviroment value DB_KEY must be 32 characters long, currently ${process.env.DB_KEY.length}.`);
+
+if (!process.env.DB_KEY) console.warn("Enviroment value DB_KEY not set, DataBase will not use encryption!");
+
 /*********************************************************************************
  * Save the CONFIG
  */

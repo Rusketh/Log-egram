@@ -2,7 +2,7 @@ const crypto = require('crypto');
 
 const Telegram = require('./telegram');
 
-const { Database } = require('./database');
+const { Database, Encrypt, Decrypt, Hash } = require('./database');
 
 const Groups = require('./groups');
 
@@ -20,7 +20,7 @@ Database.exec(`
         version INTEGER DEFAULT 1,
         group_id DOUBLE NOT NULL,
         group_name VARCHAR(256) DEFAULT NULL,
-        poster_id DOUBLE NOT NULL,
+        poster_id VARCHAR(128) NOT NULL,
         poster_name VARCHAR(256) NOT NULL,
         message_id DOUBLE NOT NULL,
         message_text TEXT DEFAULT NULL,
@@ -77,8 +77,8 @@ const addMessage = async (message, activity, version) => {
 
     if (message.from) {
         Users.registerUser(message.from);
-        poster_id = message.from.id;
-        poster_name = message.from.username;
+        poster_id = Hash(message.from.id);
+        poster_name = Encrypt(message.from.username);
     }
 
     if (message.chat) {
@@ -103,7 +103,7 @@ const addMessage = async (message, activity, version) => {
         poster_id,
         poster_name,
         message.message_id,
-        message.text || message.caption || "",
+        Encrypt(message.text || message.caption || ""),
         reply_to_id,
         sticker_id,
         version,
@@ -194,7 +194,7 @@ const query = async ({ from, to, group_id, user_id, message_id, activity, includ
 
     if (user_id) {
         conditions.push("poster_id = ?");
-        params.push(user_id);
+        params.push(user_id); //Should be hashed by the request.
     }
 
     if (message_id) {
@@ -208,10 +208,10 @@ const query = async ({ from, to, group_id, user_id, message_id, activity, includ
         i = params.length;
     }
 
-    if (search_query && search_query.length > 0) {
+    /*if (search_query && search_query.length > 0) {
         conditions.push("message_text LIKE ?");
         params.push(`%${search_query}%`);
-    }
+    }*/
 
     if (conditions.length > 0)
         query = `${query} WHERE ${conditions.join(" AND ")}`;
@@ -231,6 +231,11 @@ const query = async ({ from, to, group_id, user_id, message_id, activity, includ
     }
 
     let rows = Database.prepare(`SELECT * ${query}`).all(...params);
+
+    rows.forEach(row => {
+        row.message_text = Decrypt(row.message_text);
+        row.poster_name = Decrypt(row.poster_name);
+    });
 
     if (activity == "POST")
         rows.map(row => row.edit_count = countEdits.get(row.group_id, row.message_id)?.count || 0);

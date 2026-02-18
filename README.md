@@ -79,6 +79,7 @@ docker run -d \
   -e TELEGRAM_API_HASH="your_api_hash_here" \
   -e SERVER_PORT=3000 \
   -e SERVER_URL="https://your-domain.com" \
+  -e DB_KEY="your_32_character_key_here" \
   ghcr.io/rusketh/log-egram/logegram:main
 ```
 
@@ -102,6 +103,7 @@ services:
       - TELEGRAM_API_HASH=your_api_hash_here
       - SERVER_PORT=3000
       - SERVER_URL=https://your-domain.com
+      - DB_KEY=your_32_character_key_here
 ```
 
 **Note**: Replace the environment variables with your actual values.
@@ -115,6 +117,7 @@ services:
 | `TELEGRAM_API_HASH` | Your Application API Hash from my.telegram.org. | **Only if using Telegram SSO** |
 | `SERVER_PORT` | The port the internal server listens on (default: 3000). | **Yes** |
 | `SERVER_URL` | The public HTTPS URL of your instance (e.g., `https://logs.mysite.com`). Used for redirects and callbacks. | **Yes** |
+| `DB_KEY` | 32-character encryption key for securing data at rest. | **Yes** |
 | `SIGNIN_WITH_TELEGRAM` | Enable Telegram SSO login (default: `true`). | No |
 | `SIGNIN_WITH_LINK` | Enable one-time token-based login via bot commands (default: `true`). | No |
 | `RETENTION_DAYS` | Automatically delete messages older than X days (default: `90`). Set to `0` to disable. | No |
@@ -290,4 +293,15 @@ environment:
 -   Admin-based access control per group
 -   Expired tokens and sessions are automatically cleaned up
 
+### Database Encryption & Privacy
 
+Log-egram implements robust data-at-rest encryption and hashing to protect sensitive information:
+
+-   **Hashed Identifiers**: Telegram User IDs are stored as HMAC-SHA256 hashes. This prevents plain-text tracking of users in the database while maintaining searchability for the system.
+-   **Encrypted User Data**: Names (`user_name`, `first_name`, `last_name`) are encrypted using **AES-256-GCM**.
+-   **Encrypted Message Content**: The actual text of logged messages is encrypted using **AES-256-GCM**.
+-   **Encrypted Attachment Cache**: Cached URLs for Telegram media are encrypted before storage.
+-   **Secure Keying**: All cryptographic operations rely on the `DB_KEY` environment variable.
+
+> [!CAUTION]
+> **Changing the `DB_KEY` will result in existing data becoming unreadable.** Ensure you back up your `DB_KEY` along with your `logegram.db`.

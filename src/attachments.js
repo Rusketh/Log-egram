@@ -1,6 +1,6 @@
 const Telegram = require('./telegram');
 
-const { Database } = require('./database');
+const { Database, Encrypt, Decrypt } = require('./database');
 
 /******************************************************************************************
  * Attachment Cache
@@ -40,12 +40,12 @@ const getUrl = async (id) => {
     let attachment = get_chached.get(id);
 
     if (attachment)
-        return attachment.file_path;
+        return Decrypt(attachment.file_path);
 
     const path = await Telegram.bot.getFileLink(id);
 
     if (path)
-        insert_cached.run(id, path)
+        insert_cached.run(id, Encrypt(path));
 
     return path;
 };
