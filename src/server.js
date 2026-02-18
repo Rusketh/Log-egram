@@ -68,6 +68,17 @@ WebApp.use(express.json());
 WebApp.use(cookieParser());
 
 /******************************************************************************************
+ * Cookie Options
+ */
+
+const cookieOptions = {
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 1 Day
+    sameSite: 'lax',
+    secure: true
+};
+
+/******************************************************************************************
  * Middleware
  */
 
@@ -97,6 +108,20 @@ const forceAuth = async (req, res, next) => {
     next();
 };
 
+const csrf = (req, res, next) => {
+    const origin = req.get('origin') || req.get('referer');
+
+    if (origin) {
+        const url = new URL(origin);
+        const serverUrl = new URL(CONFIG.server.url || `http://localhost:${CONFIG.server.port}`);
+
+        if (url.hostname !== serverUrl.hostname)
+            return res.status(403).json({ error: "Forbidden: CSRF check failed." });
+    }
+
+    next();
+};
+
 /******************************************************************************************
  * Logout
  */
@@ -114,7 +139,6 @@ WebApp.get('/api/auth/logout', checkAuth, forceAuth, (req, res) => {
 /******************************************************************************************
  * Telegram SSO
  */
-
 
 const Secret = crypto.createHash('sha256').update(CONFIG.telegram.token).digest();
 
@@ -151,7 +175,7 @@ WebApp.get('/api/auth/redirect', (req, res) => {
 
     insert.run(sessionId, id, auth_date);
 
-    res.cookie('session_id', sessionId, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+    res.cookie('session_id', sessionId, cookieOptions);
 
     res.redirect('/');
 });
@@ -278,7 +302,7 @@ WebApp.get('/api/auth/token', async (req, res) => {
 
     insert.run(sessionId, row.user_id, Date.now() / 1000);
 
-    res.cookie('session_id', sessionId, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+    res.cookie('session_id', sessionId, cookieOptions);
 
     res.redirect('/');
 });
@@ -372,7 +396,7 @@ const filterByGroupAdmin = async (user, groups) => {
  * API End Points: Users
  */
 
-WebApp.get('/api/users', checkAuth, async (req, res) => {
+WebApp.get('/api/users', csrf, checkAuth, async (req, res) => {
 
     if (!req.user)
         return res.status(400).json({ status: false, error: "Not logged in." });
@@ -399,7 +423,7 @@ WebApp.get('/api/users/:group_id', checkAuth, async (req, res) => {
  * API End Points: Groups
  */
 
-WebApp.get('/api/groups', checkAuth, async (req, res) => {
+WebApp.get('/api/groups', csrf, checkAuth, async (req, res) => {
 
     if (!req.user)
         return res.status(403).json({ status: false, error: "Not logged in." });
@@ -415,7 +439,7 @@ WebApp.get('/api/groups', checkAuth, async (req, res) => {
  * API End Points: Messages
  */
 
-WebApp.get('/api/messages/', checkAuth, async (req, res) => {
+WebApp.get('/api/messages/', csrf, checkAuth, async (req, res) => {
 
     if (!req.user)
         return res.status(403).json({ status: false, error: "Not logged in." });

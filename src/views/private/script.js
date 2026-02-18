@@ -264,6 +264,16 @@ const EmbedFile = function (file, expanded = false) {
     return html;
 }
 
+const Sanitize = (message) => {
+    if (!message) return '';
+
+    const div = document.createElement('div');
+
+    div.textContent = message;
+
+    return div.innerHTML;
+};
+
 const RenderMessage = function (message) {
     let html = ``;
 
@@ -276,7 +286,7 @@ const RenderMessage = function (message) {
     let text = "";
 
     if (message.message_text)
-        text = message.message_text.replaceAll("\n", "<br>");
+        text = Sanitize(message.message_text.replaceAll("\n", "<br>"));
     else
         text = "<i>No message text</i>";
 
